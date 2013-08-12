@@ -77,6 +77,7 @@ func (cli *DockerCli) CmdHelp(args ...string) error {
 		{"attach", "Attach to a running container"},
 		{"build", "Build a container from a Dockerfile"},
 		{"commit", "Create a new image from a container's changes"},
+		{"cp", "Copy files/folders from the containers filesystem to the host path"},
 		{"diff", "Inspect changes on a container's filesystem"},
 		{"events", "Get real time events from the server"},
 		{"export", "Stream the contents of a container as a tar archive"},
@@ -1469,6 +1470,37 @@ func (cli *DockerCli) CmdRun(args ...string) error {
 	return nil
 }
 
+func (cli *DockerCli) CmdCp(args ...string) error {
+	cmd := Subcmd("cp", "CONTAINER:RESOURCE HOSTPATH", "Copy files/folders from the RESOURCE to the HOSTPATH")
+	if err := cmd.Parse(args); err != nil {
+		return nil
+	}
+
+	if cmd.NArg() != 2 {
+		cmd.Usage()
+		return nil
+	}
+
+	var copyData APICopy
+	info := strings.Split(cmd.Arg(0), ":")
+
+	copyData.Resource = info[1]
+	copyData.HostPath = cmd.Arg(1)
+
+	data, statusCode, err := cli.call("POST", "/containers/"+info[0]+"/copy", copyData)
+	if err != nil {
+		return err
+	}
+
+	if statusCode == 200 {
+		r := bytes.NewReader(data)
+		if err := Untar(r, copyData.HostPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (cli *DockerCli) checkIfLogged(action string) error {
 	// If condition AND the login failed
 	if cli.configFile.Configs[auth.IndexServerAddress()].Username == "" {
@@ -1567,7 +1599,7 @@ func (cli *DockerCli) stream(method, path string, in io.Reader, out io.Writer) e
 		return fmt.Errorf("Error: %s", body)
 	}
 
-	if resp.Header.Get("Content-Type") == "application/json" {
+	if matchesContentType(resp.Header.Get("Content-Type"), "application/json") {
 		return utils.DisplayJSONMessagesStream(resp.Body, out)
 	} else {
 		if _, err := io.Copy(out, resp.Body); err != nil {

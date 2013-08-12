@@ -13,8 +13,10 @@ Vagrant::Config.run do |config|
   config.vm.box = BOX_NAME
   config.vm.box_url = BOX_URI
   config.vm.forward_port 4243, 4243
-
-  # Provision docker and new kernel if deployment was not done
+  config.vm.forward_port 9090, 49154
+  config.vm.forward_port 9090, 49153
+  
+# Provision docker and new kernel if deployment was not done
   if Dir.glob("#{File.dirname(__FILE__)}/.vagrant/machines/default/*/id").empty?
     # Add lxc-docker package
     pkg_cmd = "apt-get update -qq; apt-get install -q -y python-software-properties; " \
@@ -93,4 +95,12 @@ if !FORWARD_DOCKER_PORTS.nil?
             config.vm.network :forwarded_port, :host => port, :guest => port
         end
     end
+end
+
+Vagrant::Config.run do |config|
+  config.vm.network :hostonly, "192.168.50.4"
+end
+
+Vagrant.configure("2") do |config|
+  config.vm.network :private_network, ip: "192.168.50.4"
 end
